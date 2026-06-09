@@ -1,0 +1,29 @@
+# Datos descargados (reproducibles desde el pipeline, no se versionan)
+data/
+*.parquet
+*.csv
+
+# Credenciales / claves de API — NUNCA subir esto
+.env
+*.key
+secrets.*
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Notebooks ejecutados (opcional: quita esta línea si quieres versionar salidas)
+*.nbconvert.ipynb
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
