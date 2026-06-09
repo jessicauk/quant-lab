@@ -1,5 +1,6 @@
-# Datos descargados (reproducibles desde el pipeline, no se versionan)
+# Datos descargados y salidas generadas (reproducibles desde el pipeline)
 data/
+output/
 *.parquet
 *.csv
 
