@@ -4,3 +4,6 @@ numpy==2.0.2
 matplotlib==3.9.4
 ccxt==4.5.56
 pyarrow==21.0.0
+
+# Tests
+pytest==8.4.2
