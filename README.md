@@ -35,6 +35,14 @@ python src/data_pipeline.py --exchange bitso --symbols BTC/MXN ETH/MXN --timefra
 python src/data_pipeline.py --exchange binance --symbols BTC/USDT ETH/USDT --timeframe 1d --days 1000
 ```
 
+El mismo pipeline sirve para otras clases de activo cambiando `--asset-class`,
+que ajusta la anualización (252 para acciones/forex, 365 para cripto):
+
+```bash
+# Anualizar como renta variable (factor 252)
+python src/data_pipeline.py --exchange binance --symbols BTC/USDT --asset-class equity --timeframe 1d
+```
+
 #### Parámetros
 
 | Flag | Descripción | Default |
@@ -42,7 +50,14 @@ python src/data_pipeline.py --exchange binance --symbols BTC/USDT ETH/USDT --tim
 | `--exchange` | ID de exchange en ccxt (bitso, binance, kraken…) | `bitso` |
 | `--symbols` | Pares a descargar, separados por espacio | `BTC/MXN ETH/MXN` |
 | `--timeframe` | Resolución de las velas (1m, 1h, 1d, 1w…) | `1d` |
+| `--asset-class` | Clase de activo para anualizar: `equity`, `fx`, `crypto`, `daily` | `crypto` |
 | `--days` | Días de historia a descargar | `365` |
+
+El factor de anualización se calcula combinando `--asset-class` (base por año:
+`equity`/`fx`=252, `crypto`/`daily`=365) con `--timeframe` (barras por día). Si
+anualizas datos **intradía** de un activo con sesión limitada (`equity`/`fx`), el
+pipeline avisa: la base de 24 h sobreestima el factor, así que para esos activos
+usa `--timeframe 1d`.
 
 Los datos crudos quedan en `data/<exchange>/<timeframe>/` (ignorados por git).
 
@@ -73,7 +88,8 @@ quant-lab/
 ├── src/
 │   ├── data.py             # Descarga de acciones/ETFs (yfinance)
 │   ├── data_pipeline.py    # Pipeline cripto (ccxt): ingesta + métricas base
-│   └── metrics.py          # Métricas de riesgo/retorno (Sharpe, drawdown…)
+│   ├── metrics.py          # Métricas de riesgo/retorno + anualización (fuente única)
+│   └── visualization.py    # Gráficas (retornos, drawdown, volatilidad, correlación)
 ├── notebooks/
 │   ├── exploration.ipynb                    # Análisis exploratorio
 │   └── exploration_emerging_markets.ipynb   # Desarrollados vs. emergentes
@@ -96,6 +112,8 @@ quant-lab/
 
 ## Notas
 
-- Para acciones se anualiza con **252** días de trading; cripto opera 24/7, por
-  eso usa factor **365**.
+- La anualización es configurable por clase de activo (`--asset-class` en el CLI,
+  o el parámetro `trading_days` en `metrics.py`). La fuente de verdad única vive
+  en `metrics.py` (`ANNUALIZATION_PRESETS` + `BARS_PER_DAY` + `periods_per_year`):
+  **252** para acciones/forex, **365** para cripto (opera 24/7).
 - Nunca subas claves de API al repo: van en `.env`, que está en `.gitignore`.
