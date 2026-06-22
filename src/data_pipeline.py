@@ -20,19 +20,15 @@ import ccxt
 import numpy as np
 import pandas as pd
 
+# Anualización: fuente de verdad única en metrics.py (presets por activo +
+# barras por timeframe). Este pipeline es de cripto, así que usa el preset 24/7.
+from metrics import ANNUALIZATION_PRESETS, BARS_PER_DAY, periods_per_year
+
 # Carpeta donde se guardan los datos crudos (parquet). Versionable o ignorable en git.
 DATA_DIR = Path("data")
 
-# Factor de anualización por timeframe. Cripto opera 24/7, por eso usamos 365 (no 252).
-ANNUALIZATION = {
-    "1m": 365 * 24 * 60,
-    "5m": 365 * 24 * 12,
-    "15m": 365 * 24 * 4,
-    "1h": 365 * 24,
-    "4h": 365 * 6,
-    "1d": 365,
-    "1w": 52,
-}
+# Clase de activo de este pipeline (cripto opera 24/7 -> base 365).
+ASSET_CLASS = "crypto"
 
 
 # ---------------------------------------------------------------------------
@@ -124,9 +120,10 @@ def compute_returns(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def rolling_volatility(returns: pd.Series, timeframe: str, window: int = 30) -> pd.Series:
+def rolling_volatility(returns: pd.Series, timeframe: str, window: int = 30,
+                       asset_class: str = ASSET_CLASS) -> pd.Series:
     """Volatilidad rolling anualizada (desviación estándar * sqrt(factor))."""
-    factor = ANNUALIZATION.get(timeframe, 365)
+    factor = periods_per_year(asset_class, timeframe)
     return returns.rolling(window).std() * np.sqrt(factor)
 
 
@@ -144,7 +141,8 @@ def correlation_matrix(data: dict[str, pd.DataFrame], use: str = "ret_log") -> p
 # ---------------------------------------------------------------------------
 # 4. Orquestación
 # ---------------------------------------------------------------------------
-def run(exchange_id: str, symbols: list[str], timeframe: str, days: int) -> None:
+def run(exchange_id: str, symbols: list[str], timeframe: str, days: int,
+        asset_class: str = ASSET_CLASS) -> None:
     print(f"\n[1/4] Descargando datos de {exchange_id}...")
     since = ccxt.Exchange.milliseconds() - days * 24 * 60 * 60 * 1000
     data = fetch_multiple(exchange_id, symbols, timeframe, since)
@@ -155,11 +153,11 @@ def run(exchange_id: str, symbols: list[str], timeframe: str, days: int) -> None
     print("\n[2/4] Guardando en parquet...")
     save_parquet(data, exchange_id, timeframe)
 
-    print("\n[3/4] Calculando retornos y volatilidad...")
+    print(f"\n[3/4] Calculando retornos y volatilidad (activo: {asset_class})...")
     data = {s: compute_returns(df) for s, df in data.items()}
     for symbol, df in data.items():
-        vol = rolling_volatility(df["ret_log"], timeframe).iloc[-1]
-        ann_ret = df["ret_log"].mean() * ANNUALIZATION.get(timeframe, 365)
+        vol = rolling_volatility(df["ret_log"], timeframe, asset_class=asset_class).iloc[-1]
+        ann_ret = df["ret_log"].mean() * periods_per_year(asset_class, timeframe)
         print(f"  {symbol}: vol anualizada (30) = {vol:.2%} | retorno anualizado ~ {ann_ret:.2%}")
 
     print("\n[4/4] Matriz de correlación (retornos log):")
@@ -174,10 +172,12 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Pipeline de datos cripto — Fase 1")
     p.add_argument("--exchange", default="bitso", help="ID de exchange en ccxt (bitso, binance, kraken...)")
     p.add_argument("--symbols", nargs="+", default=["BTC/MXN", "ETH/MXN"], help="Pares a descargar")
-    p.add_argument("--timeframe", default="1d", choices=list(ANNUALIZATION.keys()))
+    p.add_argument("--timeframe", default="1d", choices=list(BARS_PER_DAY.keys()))
+    p.add_argument("--asset-class", default=ASSET_CLASS, choices=list(ANNUALIZATION_PRESETS.keys()),
+                   help="Clase de activo para la anualización (equity=252, crypto=365...)")
     p.add_argument("--days", type=int, default=365, help="Cuántos días de historia descargar")
     args = p.parse_args()
-    run(args.exchange, args.symbols, args.timeframe, args.days)
+    run(args.exchange, args.symbols, args.timeframe, args.days, args.asset_class)
 
 
 if __name__ == "__main__":
